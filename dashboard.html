@@ -1,0 +1,1388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FOURTH Stock Management Dashboard (Login Required)</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load Chart.js for charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        // Custom primary color for the brand theme
+                        orange: { 50: '#fff7ed', 100: '#ffedd5', 200: '#fed7aa', 300: '#fdba74', 400: '#fb923c', 500: '#f97316', 600: '#ea580c', 700: '#c2410c', 800: '#9a3412', 900: '#7c2d12' },
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom styles for better scroll and layout */
+        html {
+            scroll-behavior: smooth;
+        }
+        /* Style for the vertical sidebar on larger screens */
+        .sidebar-container {
+            width: 16rem; /* 256px */
+        }
+        /* Ensure content area respects the sidebar on desktop */
+        .main-content {
+            margin-left: 0;
+        }
+        @media (min-width: 1024px) {
+            .main-content {
+                margin-left: 16rem;
+            }
+        }
+        /* Style for the fixed elements like the navbar */
+        .fixed-navbar {
+            z-index: 20;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 font-sans">
+
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="fixed inset-0 bg-gray-50 flex flex-col justify-center items-center z-50">
+        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600 mb-3"></div>
+        <p class="text-xl font-bold text-orange-600">Loading Data...</p>
+    </div>
+
+    <!-- Login Required Screen (Will be shown if not authenticated) -->
+    <div id="login-required-screen" class="hidden fixed inset-0 bg-gray-50 flex flex-col justify-center items-center p-6 text-center z-50">
+        <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-log-in text-orange-600 mb-4"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" x2="3" y1="12" y2="12"/></svg>
+        <h1 class="text-3xl font-extrabold text-gray-900 mb-3">Login Required</h1>
+        <p class="text-gray-700 mb-4 text-lg max-w-lg">
+            This inventory management dashboard requires a valid user login to access data. 
+            <br />
+            **Please authenticate with a custom token** to proceed.
+        </p>
+        <p class="text-sm text-gray-500">
+            If you see this message, it means no valid initial authentication token (`__initial_auth_token`) was provided.
+        </p>
+    </div>
+
+    <!-- Fatal Error Screen (If Firebase initialization fails) -->
+    <div id="fatal-error-screen" class="hidden fixed inset-0 bg-white flex flex-col justify-center items-center p-6 text-center z-50">
+        <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alert-triangle text-red-600 mb-4"><path d="m21.73 18.27-8-13.9a2 2 0 0 0-3.46 0l-8 13.9A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-2.73Z"/></svg>
+        <h1 class="text-3xl font-extrabold text-red-700 mb-3">CRITICAL ERROR!</h1>
+        <p class="text-gray-700 mb-4 text-lg">The dashboard failed to load due to a Firebase or configuration issue.</p>
+        <div id="error-details" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4 font-mono text-sm max-w-lg overflow-x-auto"></div>
+        <p class="text-sm text-gray-500">Please check the browser console for more details.</p>
+    </div>
+
+    <!-- Main Application Container -->
+    <div id="app-container" class="flex min-h-screen hidden">
+        
+        <!-- 1. Vertical Navbar (Fixed/Sticky) -->
+        <nav id="vertical-nav" class="fixed-navbar sidebar-container bg-gray-900 fixed h-full z-20 shadow-2xl hidden lg:flex flex-col">
+            <!-- Nav content will be rendered by JS -->
+        </nav>
+
+        <!-- 2. Main Content Area -->
+        <div id="main-content" class="main-content flex-1 p-4 sm:p-8">
+            
+            <header class="mb-8 flex flex-col sm:flex-row justify-between items-start"> 
+                <div>
+                    <h1 class="text-4xl font-extrabold text-gray-900 mb-2">Inventory Management Dashboard</h1>
+                    <p class="text-gray-600">Real-time inventory and sales tracking for the FOURTH brand.</p>
+                </div>
+                <!-- Logo -->
+                <div class="w-36 h-auto p-2 mt-4 sm:mt-0">
+                    <img 
+                        src="uploaded:WhatsApp Image 2025-10-19 at 5.54.27 AM.jpeg-c6d8a92d-4a8d-4c99-aac7-0f181082d46d" 
+                        alt="FOURTH Brand Logo" 
+                        class="w-full h-auto object-contain"
+                        onerror="this.onerror=null; this.src='https://placehold.co/150x50/F97316/ffffff?text=FOURTH+Logo';"
+                    />
+                </div>
+            </header>
+
+             <!-- Error/Message Display Area -->
+            <div id="global-error" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+                <span id="global-error-message" class="block sm:inline"></span>
+            </div>
+
+            <!-- --- 1. Dashboard Metrics Section --- -->
+            <section id="dashboard-metrics" class="mb-10 pt-4 scroll-mt-20">
+                <h2 class="text-3xl font-bold text-gray-900 mb-6">Dashboard Overview</h2>
+                 <!-- Dormant Stock Filter Control -->
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-start gap-4 p-4 bg-blue-50 border border-blue-200 rounded-xl mb-6 shadow-sm">
+                    <label for="dormant-select" class="font-semibold text-blue-800 whitespace-nowrap">Dormant Stock Filter (Select Days):</label>
+                    <select id="dormant-select" class="p-2 border border-blue-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-700 w-full sm:w-auto font-medium">
+                        <!-- Options will be populated by JS -->
+                    </select>
+                </div>
+                <!-- Metric Cards Grid -->
+                <div id="metrics-container" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6">
+                    <!-- Metric Cards will be rendered by JS -->
+                </div>
+            </section>
+
+            <hr class="my-8 border-gray-200" />
+
+            <!-- --- 2. Financial Charts Section --- -->
+             <section id="financial-charts" class="mb-12 pt-4 scroll-mt-20">
+                <h2 class="text-3xl font-bold text-gray-900 mb-6">Financial & Investment Overview</h2>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <!-- Profitability Pie Chart -->
+                    <div class="bg-white p-6 rounded-xl shadow-lg h-96">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-2">Profitability Analysis (COGS vs. Profit)</h3>
+                        <div class="relative h-[85%]">
+                            <canvas id="profitability-chart"></canvas>
+                             <div id="profitability-no-data" class="absolute inset-0 flex items-center justify-center text-gray-500 hidden">No sales data recorded yet.</div>
+                        </div>
+                    </div>
+                    <!-- Monthly Investment Bar Chart -->
+                    <div class="bg-white p-6 rounded-xl shadow-lg h-96">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-2">Monthly Stock Investment Trend (Cost)</h3>
+                        <div class="relative h-[85%]">
+                            <canvas id="investment-chart"></canvas>
+                            <div id="investment-no-data" class="absolute inset-0 flex items-center justify-center text-gray-500 hidden">No stock-in dates recorded to show trend.</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <hr class="my-8 border-gray-200" />
+
+            <!-- --- 3. Add Product Section --- -->
+            <section id="add-product" class="mb-12 pt-4 scroll-mt-20 max-w-4xl mx-auto">
+                <h2 class="text-3xl font-bold text-orange-600 mb-6 border-b pb-2">Add New Product</h2>
+                <div class="bg-white p-6 rounded-xl shadow-lg h-fit">
+                    <form id="add-product-form" class="space-y-3">
+                        
+                        <!-- Row 1: Date and Category -->
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">1. Stock In Date</label>
+                                <input type="date" name="stockInDate" id="stockInDate" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border" />
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">3. Category</label>
+                                <input type="text" name="category" id="category" placeholder="e.g., T-Shirt" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border" />
+                            </div>
+                        </div>
+
+                        <!-- Row 2: Name -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">2. Product Name</label>
+                            <input type="text" name="name" id="name" placeholder="e.g., Denim Jacket" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border" />
+                        </div>
+
+                        <!-- Row 3: Color and Season -->
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">4. Color</label>
+                                <input type="text" name="color" id="color" placeholder="e.g., Black" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border" />
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">5. Season / Occasion</label>
+                                <select name="season" id="season" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+                                    <option value="" disabled selected>Select Occasion</option>
+                                    <!-- Options will be populated by JS -->
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <!-- Row 4: Size and SKU Code -->
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">6. Size</label>
+                                <select name="size" id="size" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+                                    <option value="" disabled selected>Select Size</option>
+                                     <!-- Options will be populated by JS -->
+                                </select>
+                            </div>
+                             <div class="bg-gray-100 p-2 rounded-md border border-gray-300">
+                                <label class="block text-sm font-medium text-gray-700">7. Auto-Generated SKU</label>
+                                <p id="sku-preview" class="text-sm font-bold font-mono text-gray-800 mt-1">FTH-INCOMPLETE</p>
+                            </div>
+                        </div>
+                        
+                        <!-- Row 5: Stock In Qty and Cost -->
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">8. Stock In Quantity</label>
+                                <input type="number" name="stockInQty" id="stockInQty" value="0" min="0" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border" />
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">9. Cost Price (per piece)</label>
+                                <input type="number" name="cost" id="cost" value="0" min="0" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border" />
+                            </div>
+                        </div>
+
+                        <!-- Row 6: Sell Price and Reorder Point -->
+                        <div class="grid grid-cols-2 gap-3">
+                             <div>
+                                <label class="block text-sm font-medium text-gray-700">11. Selling Price (per piece)</label>
+                                <input type="number" name="price" id="price" value="0" min="0" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border" />
+                            </div>
+                             <div>
+                                <label class="block text-sm font-medium text-gray-700">Reorder Point</label>
+                                <input type="number" name="reorderPoint" id="reorderPoint" value="10" min="1" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border" />
+                            </div>
+                        </div>
+                        
+                        <!-- Row 7: Notes -->
+                        <div>
+                             <label class="block text-sm font-medium text-gray-700">Notes / Remarks</label>
+                             <textarea name="notes" id="notes" rows="2" placeholder="Any special remarks or details..." class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border"></textarea>
+                        </div>
+
+                        <!-- Row 8: Image URL -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Image URL (Optional)</label>
+                            <input type="url" name="imageUrl" id="imageUrl" placeholder="https://example.com/image.jpg" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border" />
+                        </div>
+
+                        <!-- Calculated Values Display -->
+                        <div class="bg-gray-100 p-3 rounded-md text-sm space-y-1 mt-4">
+                             <p class="font-medium">10. Total Stock In Value: <span id="stock-in-value-preview" class="font-bold text-gray-800">0 ৳</span></p>
+                             <p class="text-xs text-gray-500">* (Fields 11-14 are calculated automatically on the dashboard.)</p>
+                        </div>
+
+                        <button type="submit" id="add-product-button" disabled class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 transition duration-150 disabled:bg-gray-400 disabled:cursor-not-allowed">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-plus-square mr-1"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M12 8v8"/><path d="M8 12h8"/></svg>
+                            Add Product
+                        </button>
+                         <p id="sku-incomplete-message" class="text-xs text-red-500 text-center hidden">Fill fields 2, 3, 4, 5, and 6 to enable SKU generation.</p>
+                    </form>
+                </div>
+            </section>
+
+            <hr class="my-8 border-gray-200" />
+            
+            <!-- --- 4. Product List Section --- -->
+            <section id="inventory-list" class="mb-12 pt-4 scroll-mt-20">
+                <div class="bg-white p-6 rounded-xl shadow-lg overflow-x-auto">
+                    
+                    <div class='flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 border-b pb-2'>
+                        <h2 class="text-3xl font-bold text-gray-900 mb-2 sm:mb-0">Inventory List (<span id="product-count">0</span>)</h2>
+                        <!-- CSV Export Button -->
+                        <button id="export-csv-button" disabled class="flex items-center space-x-2 py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-150 disabled:bg-gray-400 disabled:cursor-not-allowed">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-download"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                            <span>Export CSV</span>
+                        </button>
+                    </div>
+
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product / Details</th>
+                                <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Profit Margin (%)</th>
+                                <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Stock Status</th> 
+                                <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Last Sold Date</th> 
+                                <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inventory-table-body" class="bg-white divide-y divide-gray-200">
+                            <!-- Product rows will be rendered by JS -->
+                        </tbody>
+                    </table>
+                    <p id="no-products-message" class="text-center py-8 text-gray-500 hidden">No products have been added yet.</p>
+                </div>
+            </section>
+        </div>
+        
+    </div>
+
+    <!-- --- Modal Structure --- -->
+    <div id="product-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden transform transition-all duration-300 scale-100">
+            <div id="modal-header" class="p-4 flex justify-between items-center border-b border-orange-200 bg-orange-50">
+                <h2 id="modal-title" class="text-xl font-bold text-orange-700"></h2>
+                <button id="modal-close-button" class="text-gray-400 hover:text-gray-600 transition p-1 rounded-full hover:bg-orange-100">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x w-6 h-6"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+            </div>
+            <div id="modal-body" class="p-6">
+                <!-- Form content will be injected here -->
+            </div>
+        </div>
+    </div>
+
+
+    <!-- --- JavaScript and Firebase Setup --- -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, onSnapshot, collection, query, setDoc, addDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        // To get icons in JS for dynamic rendering
+        import { icons } from 'https://cdn.skypack.dev/lucide@0.303.0';
+
+        // --- GLOBAL CONFIGURATION AND STATE ---
+        const PRIMARY_COLOR = 'orange';
+        const CURRENCY_LOCALE = 'en-US'; 
+        const INVENTORY_COLLECTION = 'inventory_products'; 
+        const SIZE_OPTIONS = ['S', 'M', 'L', 'XL', 'XXL'];
+        const SEASON_OPTIONS = [
+            { value: 'Summer', label: 'Summer' }, { value: 'Rainy', label: 'Rainy' },
+            { value: 'Autumn', label: 'Autumn' }, { value: 'Late Autumn', label: 'Late Autumn' },
+            { value: 'Winter', label: 'Winter' }, { value: 'Spring', label: 'Spring' },
+            { value: 'Eid ul Fitr', label: 'Eid ul Fitr' }, { value: 'Eid ul Adha', label: 'Eid ul Adha' },
+        ];
+        const DORMANT_DAYS_OPTIONS = [
+            { value: 10, label: '10+ days' }, { value: 20, label: '20+ days' }, 
+            { value: 30, label: '30+ days' }, { value: 40, label: '40+ days' }, 
+            { value: 60, label: '60+ days' }, { value: 90, label: '90+ days' },
+        ];
+
+        // Global Firebase Variables (Provided by Canvas Environment)
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null; 
+
+        // App State
+        let db, auth;
+        let userId = null;
+        let isAuthenticated = false;
+        let products = [];
+        let dormantDaysThreshold = 90;
+
+        // Chart Instances
+        let profitabilityChartInstance = null;
+        let investmentChartInstance = null;
+
+        // Modal State
+        let isModalOpen = false;
+        let currentProduct = null;
+        let modalMode = ''; // 'edit' or 'adjust'
+
+        // --- UTILITY FUNCTIONS ---
+
+        const getIconSVG = (iconName, classes = "w-5 h-5") => {
+            const Icon = icons[iconName] || icons.Package;
+            if (!Icon) return '';
+            return `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${classes}">${Icon.contents}</svg>`;
+        };
+
+        const displayError = (message) => {
+            const errorDiv = document.getElementById('global-error');
+            const errorMessageSpan = document.getElementById('global-error-message');
+            errorMessageSpan.textContent = message;
+            errorDiv.classList.remove('hidden');
+            console.error("APP ERROR:", message);
+            // Auto hide after 5 seconds
+            setTimeout(() => errorDiv.classList.add('hidden'), 5000);
+        };
+
+        const formatDate = (timestamp) => {
+            if (!timestamp) return 'N/A';
+            const dateValue = timestamp.toMillis ? timestamp.toMillis() : timestamp;
+            return new Date(dateValue).toLocaleDateString('en-US');
+        };
+
+        const calculateProfitMargin = (price, cost) => {
+            const p = Number(price) || 0;
+            const c = Number(cost) || 0;
+            if (p <= 0) return 0;
+            return ((p - c) / p) * 100;
+        };
+        
+        const generateSKU = (item) => {
+            if (!item.name || !item.category || !item.color || !item.season || !item.size) {
+                return 'FTH-INCOMPLETE';
+            }
+
+            const cleanAndAbbreviate = (str, len = 3) => 
+                str.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().substring(0, len) || 'X';
+            
+            const namePart = cleanAndAbbreviate(item.name, 3);
+            const categoryPart = cleanAndAbbreviate(item.category, 3);
+            const colorPart = cleanAndAbbreviate(item.color, 3);
+            const seasonPart = cleanAndAbbreviate(item.season, 3);
+            const sizePart = cleanAndAbbreviate(item.size, 3);
+
+            return `FTH-${namePart}-${categoryPart}-${colorPart}-${seasonPart}-${sizePart}`;
+        };
+
+        // --- CORE UI RENDERING FUNCTIONS ---
+        
+        const renderVerticalNav = () => {
+            const navElement = document.getElementById('vertical-nav');
+            const navItems = [
+                { id: 'dashboard-metrics', label: 'Overview', icon: 'LayoutDashboard' },
+                { id: 'financial-charts', label: 'Financial Charts', icon: 'BarChart' },
+                { id: 'add-product', label: 'Add Product', icon: 'PlusSquare' },
+                { id: 'inventory-list', label: 'Inventory List', icon: 'ListChecks' },
+            ];
+            
+            const navHtml = `
+                <div class="p-6 border-b border-gray-700 bg-orange-600">
+                    <span class="text-white text-2xl font-bold font-serif">FOURTH STOCKS</span>
+                </div>
+                <div class="p-4 flex-1 space-y-2 overflow-y-auto">
+                    ${navItems.map(item => `
+                        <a href="#${item.id}" class="flex items-center space-x-3 p-3 rounded-lg text-gray-200 hover:bg-orange-700 hover:text-white transition duration-150">
+                            ${getIconSVG(item.icon, "w-5 h-5")}
+                            <span class="font-medium">${item.label}</span>
+                        </a>
+                    `).join('')}
+                </div>
+                <div class="p-4 border-t border-gray-700 bg-gray-800">
+                    <div class="flex items-center space-x-2 text-gray-400">
+                        ${getIconSVG('User', "w-4 h-4")}
+                        <span class="text-xs font-medium">User ID:</span>
+                    </div>
+                    <p class="text-xs font-mono text-gray-500 break-words mt-1">${userId || 'N/A'}</p>
+                </div>
+            `;
+            navElement.innerHTML = navHtml;
+        };
+
+        const renderMetricCard = (title, value, unit, iconName, colorClass) => {
+            return `
+                <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-100 transition duration-300 hover:shadow-xl flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-semibold text-gray-500 mb-1">${title}</p>
+                        <h3 class="text-3xl font-extrabold ${colorClass}">
+                            ${value}
+                            <span class="text-xl font-normal ml-1">${unit}</span>
+                        </h3>
+                    </div>
+                    ${getIconSVG(iconName, `w-8 h-8 ${colorClass}`)}
+                </div>
+            `;
+        };
+
+        const renderMetrics = () => {
+            const metricsContainer = document.getElementById('metrics-container');
+            const calculatedMetrics = calculateMetrics();
+
+            const metricHtml = [
+                renderMetricCard("Total Stock Quantity", calculatedMetrics.totalQuantityInStock.toLocaleString(CURRENCY_LOCALE), "pcs", "Package", "text-gray-900"),
+                renderMetricCard("Total Stock Value (Cost)", calculatedMetrics.totalStockValue.toLocaleString(CURRENCY_LOCALE), "৳", "DollarSign", `text-${PRIMARY_COLOR}-600`),
+                renderMetricCard("Overall Gross Margin", calculatedMetrics.overallProfitMargin.toFixed(1), "%", "Tag", calculatedMetrics.overallProfitMargin > 20 ? 'text-green-600' : 'text-yellow-600'),
+                renderMetricCard("Total Sales Revenue", calculatedMetrics.totalSalesValue.toLocaleString(CURRENCY_LOCALE), "৳", "TrendingUp", `text-${PRIMARY_COLOR}-600`),
+                renderMetricCard("Reorder Needed", calculatedMetrics.reorderNeededCount, "items", "AlertTriangle", calculatedMetrics.reorderNeededCount > 0 ? 'text-red-600' : 'text-green-600'),
+                renderMetricCard(`Dormant Stock (${dormantDaysThreshold}+ days)`, calculatedMetrics.dormantStockCount, "items", "Clock", calculatedMetrics.dormantStockCount > 0 ? 'text-blue-600' : 'text-gray-400'),
+            ].join('');
+
+            metricsContainer.innerHTML = metricHtml;
+        };
+        
+        const renderAddProductForm = () => {
+            // Populate size and season dropdowns
+            const sizeSelect = document.getElementById('size');
+            const seasonSelect = document.getElementById('season');
+
+            sizeSelect.innerHTML = '<option value="" disabled selected>Select Size</option>';
+            SIZE_OPTIONS.forEach(size => {
+                sizeSelect.innerHTML += `<option value="${size}">${size}</option>`;
+            });
+
+            seasonSelect.innerHTML = '<option value="" disabled selected>Select Occasion</option>';
+            SEASON_OPTIONS.forEach(opt => {
+                seasonSelect.innerHTML += `<option value="${opt.value}">${opt.label}</option>`;
+            });
+
+            // Set default date
+            document.getElementById('stockInDate').value = new Date().toISOString().substring(0, 10);
+        };
+
+        const updateSkuAndValuePreview = () => {
+            const newItem = {
+                name: document.getElementById('name').value,
+                category: document.getElementById('category').value,
+                color: document.getElementById('color').value,
+                size: document.getElementById('size').value,
+                season: document.getElementById('season').value,
+                stockInQty: document.getElementById('stockInQty').value,
+                cost: document.getElementById('cost').value,
+            };
+
+            const generatedSku = generateSKU(newItem);
+            document.getElementById('sku-preview').textContent = generatedSku;
+            
+            const stockInValue = (Number(newItem.stockInQty) || 0) * (Number(newItem.cost) || 0);
+            document.getElementById('stock-in-value-preview').textContent = `${stockInValue.toLocaleString(CURRENCY_LOCALE)} ৳`;
+            
+            const addButton = document.getElementById('add-product-button');
+            const skuMessage = document.getElementById('sku-incomplete-message');
+
+            if (generatedSku === 'FTH-INCOMPLETE') {
+                addButton.disabled = true;
+                skuMessage.classList.remove('hidden');
+            } else {
+                addButton.disabled = false;
+                skuMessage.classList.add('hidden');
+            }
+        };
+
+        const renderInventoryTable = () => {
+            const tableBody = document.getElementById('inventory-table-body');
+            const productCountSpan = document.getElementById('product-count');
+            const noProductsMessage = document.getElementById('no-products-message');
+            const exportCsvButton = document.getElementById('export-csv-button');
+            
+            productCountSpan.textContent = products.length;
+
+            if (products.length === 0) {
+                tableBody.innerHTML = '';
+                noProductsMessage.classList.remove('hidden');
+                exportCsvButton.disabled = true;
+                return;
+            }
+            
+            noProductsMessage.classList.add('hidden');
+            exportCsvButton.disabled = false;
+
+            tableBody.innerHTML = products.map(p => {
+                const profitMargin = calculateProfitMargin(p.price, p.cost);
+                
+                let stockStatus = 'In Stock';
+                let statusColor = 'text-green-600 bg-green-100';
+                if (p.stock === 0) {
+                    stockStatus = 'Out of Stock';
+                    statusColor = 'text-red-600 bg-red-100';
+                } else if (p.stock <= p.reorderPoint) {
+                    stockStatus = 'Low Stock';
+                    statusColor = 'text-orange-600 bg-orange-100';
+                }
+
+                return `
+                    <tr id="row-${p.id}" class="${p.stock <= p.reorderPoint ? 'bg-red-50 hover:bg-red-100 transition' : 'hover:bg-gray-50 transition'}">
+                        <td class="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
+                            <span class="font-semibold">${p.name}</span>
+                            <p class="text-xs text-gray-500 mt-0.5 font-mono">SKU: ${p.sku}</p>
+                            <div class='flex flex-wrap items-center space-x-3 mt-1 text-xs'>
+                                <span class="flex items-center font-medium text-gray-600">Size: ${p.size || 'N/A'} | Color: ${p.color || 'N/A'}</span>
+                                ${p.notes ? `<span title="${p.notes}" class="flex items-center text-blue-500 font-semibold hover:text-blue-700 cursor-help">${getIconSVG('FileText', 'w-3 h-3 mr-0.5')} Notes</span>` : ''}
+                                ${p.imageUrl ? `<span title="Image URL is set" class="flex items-center text-purple-500 font-semibold cursor-pointer" onclick="window.open('${p.imageUrl}', '_blank')">${getIconSVG('Image', 'w-3 h-3 mr-0.5')} Image</span>` : ''}
+                            </div>
+                        </td>
+                        <td class="px-3 py-2 whitespace-nowrap text-center text-sm font-bold">
+                            <span class="${profitMargin > 20 ? 'text-green-600' : 'text-orange-600'}">
+                                ${profitMargin.toFixed(1)}%
+                            </span>
+                        </td>
+                        <td class="px-3 py-2 whitespace-nowrap text-center text-sm">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full font-bold ${statusColor}">
+                                ${p.stock} pcs <span class="ml-1 font-normal text-xs block">${`(${stockStatus})`}</span>
+                            </span>
+                        </td>
+                        <td class="px-3 py-2 whitespace-nowrap text-center text-sm text-gray-500">
+                            <span class='flex items-center justify-center'>
+                                ${getIconSVG('Calendar', 'w-3 h-3 mr-1 text-gray-400')}
+                                ${formatDate(p.lastSold)}
+                            </span>
+                        </td>
+                        <td class="px-3 py-2 whitespace-nowrap text-center text-sm font-medium space-x-2">
+                            <button onclick="openModal('${p.id}', 'edit')" class="text-white bg-blue-500 hover:bg-blue-600 p-2 rounded-md text-xs transition duration-150 shadow-sm" title="Edit Details">
+                                ${getIconSVG('Edit', 'w-3.5 h-3.5 inline')}
+                            </button>
+                            <button onclick="openModal('${p.id}', 'adjust')" class="text-white bg-orange-500 hover:bg-orange-600 p-2 rounded-md text-xs transition duration-150 shadow-sm" title="Adjust Stock">
+                                Adjust Stock
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        };
+
+        const renderDormantOptions = () => {
+            const select = document.getElementById('dormant-select');
+            select.innerHTML = DORMANT_DAYS_OPTIONS.map(opt => 
+                `<option value="${opt.value}" ${opt.value == dormantDaysThreshold ? 'selected' : ''}>${opt.label}</option>`
+            ).join('');
+        };
+        
+        // --- CHART RENDERING ---
+
+        const calculateMetrics = () => {
+            const result = {
+                totalItems: products.length,
+                totalStockValue: 0,
+                totalSalesValue: 0,
+                totalQuantityInStock: 0,
+                reorderNeededCount: 0,
+                dormantStockCount: 0,
+                totalGrossProfit: 0, 
+                totalCostOfGoodsSold: 0,
+                overallProfitMargin: 0,
+            };
+
+            const dormantThresholdMs = Date.now() - (dormantDaysThreshold * 24 * 60 * 60 * 1000);
+
+            products.forEach(p => {
+                const stock = Number(p.stock) || 0;
+                const price = Number(p.price) || 0;
+                const cost = Number(p.cost) || 0;
+                const salesCount = Number(p.salesCount) || 0;
+                const reorderPoint = Number(p.reorderPoint) || 1;
+                
+                const lastSoldTimestamp = p.lastSold?.toMillis ? p.lastSold.toMillis() : p.lastSold || 0;
+
+                result.totalQuantityInStock += stock;
+                result.totalStockValue += stock * cost;
+                result.totalSalesValue += salesCount * price;
+                
+                const profitPerUnit = price - cost;
+                const actualProfit = profitPerUnit * salesCount;
+                const costOfGoodsSold = cost * salesCount;
+                result.totalGrossProfit += actualProfit;
+                result.totalCostOfGoodsSold += costOfGoodsSold;
+
+                if (stock <= reorderPoint) {
+                    result.reorderNeededCount++;
+                }
+
+                if (stock > 0 && lastSoldTimestamp > 0 && lastSoldTimestamp < dormantThresholdMs) {
+                    result.dormantStockCount++;
+                }
+            });
+
+            if (result.totalSalesValue > 0) {
+                result.overallProfitMargin = (result.totalGrossProfit / result.totalSalesValue) * 100;
+            }
+
+            return result;
+        };
+
+        const renderCharts = (metrics) => {
+            // --- Chart 1: Profitability Pie Chart ---
+            const profitabilityData = [
+                { name: 'Cost of Goods Sold (COGS)', value: metrics.totalCostOfGoodsSold, color: '#FCD34D' }, 
+                { name: 'Gross Profit from Sales', value: metrics.totalGrossProfit, color: '#F97316' } 
+            ].filter(d => d.value > 0);
+            
+            const totalValue = metrics.totalGrossProfit + metrics.totalCostOfGoodsSold;
+            const profitPercentage = totalValue > 0 ? (metrics.totalGrossProfit / totalValue) * 100 : 0;
+            
+            const profitabilityCanvas = document.getElementById('profitability-chart');
+            const profitabilityNoData = document.getElementById('profitability-no-data');
+
+            if (profitabilityChartInstance) profitabilityChartInstance.destroy();
+            
+            if (totalValue === 0) {
+                profitabilityCanvas.classList.add('hidden');
+                profitabilityNoData.classList.remove('hidden');
+            } else {
+                profitabilityCanvas.classList.remove('hidden');
+                profitabilityNoData.classList.add('hidden');
+                
+                profitabilityChartInstance = new Chart(profitabilityCanvas, {
+                    type: 'doughnut',
+                    data: {
+                        labels: profitabilityData.map(d => d.name),
+                        datasets: [{
+                            data: profitabilityData.map(d => d.value),
+                            backgroundColor: profitabilityData.map(d => d.color),
+                            borderWidth: 1,
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        cutout: '70%', // Makes it a doughnut chart
+                        plugins: {
+                            legend: { position: 'bottom' },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const label = context.label || '';
+                                        const value = context.parsed;
+                                        const percentage = ((value / totalValue) * 100).toFixed(1);
+                                        return `${label}: ${value.toLocaleString(CURRENCY_LOCALE)} ৳ (${percentage}%)`;
+                                    }
+                                }
+                            }
+                        },
+                        // Custom text overlay for profit percentage
+                        plugins: {
+                            legend: { position: 'bottom' },
+                            tooltip: {},
+                            datalabels: { // Using a custom plugin logic for center text
+                                beforeDraw: function(chart) {
+                                    const width = chart.width,
+                                        height = chart.height,
+                                        ctx = chart.ctx;
+                                    ctx.restore();
+                                    const fontSize = (height / 114).toFixed(2);
+                                    ctx.font = `${fontSize}em sans-serif`;
+                                    ctx.textBaseline = "middle";
+                                    const text = `${profitPercentage.toFixed(1)}% GP`,
+                                        textX = Math.round((width - ctx.measureText(text).width) / 2),
+                                        textY = height / 2;
+                                    ctx.fillText(text, textX, textY);
+                                    ctx.save();
+                                }
+                            }
+                        }
+                    },
+                    plugins: [
+                        // Plugin to draw text in the center
+                        {
+                            id: 'centerText',
+                            beforeDraw: (chart) => {
+                                if (chart.config.type === 'doughnut') {
+                                    const { ctx, chartArea: { top, bottom, left, right, width, height } } = chart;
+                                    ctx.save();
+                                    
+                                    const text = `${profitPercentage.toFixed(1)}% GP`;
+                                    const textFont = '24px Inter, sans-serif';
+                                    const textColor = '#1F2937'; // gray-800
+                                    
+                                    ctx.font = textFont;
+                                    ctx.fillStyle = textColor;
+                                    ctx.textAlign = 'center';
+                                    ctx.textBaseline = 'middle';
+                                    
+                                    // Calculate center of chart
+                                    const centerX = (left + right) / 2;
+                                    const centerY = (top + bottom) / 2;
+                                    
+                                    ctx.fillText(text, centerX, centerY);
+                                    ctx.restore();
+                                }
+                            }
+                        }
+                    ]
+                });
+            }
+
+            // --- Chart 2: Monthly Investment Bar Chart ---
+            const monthlyDataMap = products.reduce((acc, p) => {
+                const date = p.stockInDate; 
+                if (!date) return acc;
+
+                // Ensure date is a valid string like 'YYYY-MM-DD'
+                const [year, month] = date.split('-');
+                if (!year || !month) return acc;
+                
+                const monthYearKey = `${year}-${month}`; 
+                const costValue = (Number(p.cost) || 0) * (Number(p.stockInQty || p.stock) || 0);
+
+                acc[monthYearKey] = (acc[monthYearKey] || 0) + costValue;
+                return acc;
+            }, {});
+
+            const barChartData = Object.entries(monthlyDataMap)
+                .map(([key, value]) => {
+                    const [year, month] = key.split('-');
+                    const monthName = new Date(year, month - 1, 1).toLocaleString(CURRENCY_LOCALE, { month: 'short' });
+                    return { 
+                        month: `${monthName} '${year.slice(2)}`, 
+                        investment: value 
+                    };
+                })
+                .sort((a, b) => {
+                    // Simple date sorting based on YYYY-MM key
+                    const keyA = a.month.substring(a.month.indexOf("'") + 1) + (a.month.includes('Jan') ? '01' : a.month.includes('Feb') ? '02' : '06'); // Rough sort
+                    const keyB = b.month.substring(b.month.indexOf("'") + 1) + (b.month.includes('Jan') ? '01' : b.month.includes('Feb') ? '02' : '06');
+                    return keyA.localeCompare(keyB);
+                });
+
+            const investmentCanvas = document.getElementById('investment-chart');
+            const investmentNoData = document.getElementById('investment-no-data');
+
+            if (investmentChartInstance) investmentChartInstance.destroy();
+            
+            if (barChartData.length === 0) {
+                investmentCanvas.classList.add('hidden');
+                investmentNoData.classList.remove('hidden');
+            } else {
+                investmentCanvas.classList.remove('hidden');
+                investmentNoData.classList.add('hidden');
+
+                investmentChartInstance = new Chart(investmentCanvas, {
+                    type: 'bar',
+                    data: {
+                        labels: barChartData.map(d => d.month),
+                        datasets: [{
+                            label: 'Stock Value In',
+                            data: barChartData.map(d => d.investment),
+                            backgroundColor: '#F97316',
+                            borderRadius: 4,
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return `Investment Value: ${context.parsed.y.toLocaleString(CURRENCY_LOCALE)} ৳`;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: { title: { display: true, text: 'Month/Year' } },
+                            y: {
+                                title: { display: true, text: 'Investment (৳)' },
+                                ticks: {
+                                    callback: function(value) {
+                                        return `${(value / 1000).toFixed(0)}k`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        };
+
+        // --- MODAL HANDLERS (EXPOSED GLOBALLY for onclick) ---
+
+        window.openModal = (productId, mode) => {
+            currentProduct = products.find(p => p.id === productId);
+            if (!currentProduct) {
+                displayError("Product not found.");
+                return;
+            }
+            modalMode = mode;
+            isModalOpen = true;
+
+            const modal = document.getElementById('product-modal');
+            const modalTitle = document.getElementById('modal-title');
+            const modalBody = document.getElementById('modal-body');
+
+            modal.classList.remove('hidden');
+            
+            if (mode === 'edit') {
+                modalTitle.textContent = 'Edit Product Details';
+                modalBody.innerHTML = generateEditFormHtml(currentProduct);
+                document.getElementById('edit-product-form').addEventListener('submit', handleUpdateProductDetails);
+            } else if (mode === 'adjust') {
+                modalTitle.textContent = 'Stock Adjustment';
+                modalBody.innerHTML = generateAdjustFormHtml(currentProduct);
+                document.getElementById('adjust-stock-form').addEventListener('submit', handleAdjustStockSubmit);
+            }
+        };
+
+        window.closeModal = () => {
+            const modal = document.getElementById('product-modal');
+            modal.classList.add('hidden');
+            isModalOpen = false;
+            currentProduct = null;
+            modalMode = '';
+            document.getElementById('modal-body').innerHTML = ''; // Clear content
+        };
+        
+        // Add listener to the dedicated close button
+        document.getElementById('modal-close-button').addEventListener('click', window.closeModal);
+
+
+        // --- MODAL FORM GENERATORS ---
+
+        const generateEditFormHtml = (p) => {
+            const margin = calculateProfitMargin(p.price, p.cost);
+            return `
+                <form id="edit-product-form" class="space-y-4">
+                    <input type="hidden" name="id" value="${p.id}">
+                    <div class="grid grid-cols-2 gap-4">
+                        <!-- Row 1: SKU and Name -->
+                         <div>
+                            <label class="block text-sm font-medium text-gray-700">7. SKU Code</label>
+                            <input type="text" value="${p.sku}" readOnly class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border bg-gray-100 font-mono" />
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">2. Product Name</label>
+                            <input type="text" name="name" value="${p.name}" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border" />
+                        </div>
+                        
+                        <!-- Row 2: Category and Color -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">3. Category</label>
+                            <input type="text" name="category" value="${p.category || ''}" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border" />
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">4. Color</label>
+                            <input type="text" name="color" value="${p.color || ''}" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border" />
+                        </div>
+                        
+                        <!-- Row 3: Season and Size -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">5. Season / Occasion</label>
+                            <select name="season" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+                                ${SEASON_OPTIONS.map(opt => `<option value="${opt.value}" ${opt.value === p.season ? 'selected' : ''}>${opt.label}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">6. Size</label>
+                            <select name="size" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+                                ${SIZE_OPTIONS.map(size => `<option value="${size}" ${size === p.size ? 'selected' : ''}>${size}</option>`).join('')}
+                            </select>
+                        </div>
+
+                        <!-- Row 4: Stock In Date and Stock -->
+                         <div>
+                            <label class="block text-sm font-medium text-gray-700">1. Stock In Date</label>
+                            <input type="date" name="stockInDate" value="${p.stockInDate || new Date().toISOString().substring(0, 10)}" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border" />
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Current Stock</label>
+                            <input type="number" name="stock" value="${p.stock}" min="0" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border" />
+                        </div>
+
+                        <!-- Row 5: Prices and Reorder Point -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">8. Cost Price (per piece)</label>
+                            <input type="number" name="cost" value="${p.cost}" min="0" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border" />
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">11. Selling Price (per piece)</label>
+                            <input type="number" name="price" value="${p.price}" min="0" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border" />
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Reorder Point</label>
+                            <input type="number" name="reorderPoint" value="${p.reorderPoint}" min="1" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border" />
+                        </div>
+
+                        <!-- Row 6: Profit Margin (Read Only) -->
+                        <div class="bg-gray-100 p-2 rounded-md border border-gray-300">
+                            <label class="block text-sm font-medium text-gray-700">Profit Margin (%)</label>
+                            <p class="text-sm font-bold mt-1 ${margin >= 20 ? 'text-green-600' : 'text-orange-600'}">${margin.toFixed(2)}%</p>
+                        </div>
+                    </div>
+
+                    <!-- Row 7: Notes / Remarks -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Notes / Remarks</label>
+                        <textarea name="notes" rows="2" placeholder="Any special remarks or details..." class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">${p.notes || ''}</textarea>
+                    </div>
+                    
+                    <!-- Row 8: Image URL -->
+                     <div>
+                        <label class="block text-sm font-medium text-gray-700">Image URL</label>
+                        <input type="url" name="imageUrl" value="${p.imageUrl || ''}" placeholder="https://example.com/image.jpg" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border" />
+                    </div>
+
+                    <div class="flex justify-between pt-4 border-t mt-4">
+                         <div class="flex flex-col">
+                            <button type="button" id="delete-product-button" class="flex items-center font-medium transition duration-150 p-2 rounded-md text-red-600 hover:bg-red-50">
+                                ${getIconSVG('Trash2', 'w-4 h-4 mr-1')} Delete Product
+                            </button>
+                            <p id="delete-confirm-message" class="text-xs text-red-500 mt-1 hidden">Click again to CONFIRM deletion.</p>
+                        </div>
+                        
+                        <button type="submit" class="py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 transition duration-150">
+                            Save Changes
+                        </button>
+                    </div>
+                </form>
+            `;
+        };
+        
+        const generateAdjustFormHtml = (p) => {
+            return `
+                <form id="adjust-stock-form" class="space-y-4">
+                    <input type="hidden" name="id" value="${p.id}">
+                    <p class="text-lg font-semibold mb-3">Product Name: ${p.name} <span class="font-mono text-sm block text-gray-500">SKU: ${p.sku}</span></p>
+                    
+                    <div class="flex space-x-4">
+                        <button type="button" id="restock-button" data-type="restock" class="flex-1 py-3 rounded-lg font-bold transition-all duration-200 border-2 bg-green-500 text-white border-green-700 shadow-md">
+                             ${getIconSVG('ArrowUpCircle', 'w-5 h-5 inline mr-1')} Add Stock
+                        </button>
+                        <button type="button" id="sale-button" data-type="sale" class="flex-1 py-3 rounded-lg font-bold transition-all duration-200 border-2 bg-gray-100 text-gray-700 border-gray-300 hover:bg-red-50">
+                            ${getIconSVG('ArrowDownCircle', 'w-5 h-5 inline mr-1')} Record Sale
+                        </button>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Quantity</label>
+                        <input type="number" name="quantity" value="1" min="1" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-3 text-2xl text-center border focus:border-orange-500 focus:ring-orange-500" />
+                    </div>
+
+                    <p id="stock-status-message" class="text-sm text-gray-500">
+                        Current Stock: <span class="font-bold">${p.stock}</span> pieces
+                    </p>
+
+                    <button type="submit" id="adjust-submit-button" class="w-full py-2 px-4 rounded-md shadow-sm text-sm font-medium text-white transition duration-150 bg-green-600 hover:bg-green-700">
+                        Add Stock
+                    </button>
+                </form>
+            `;
+        };
+
+        // --- FIREBASE CRUD HANDLERS (EXPOSED GLOBALLY for imports) ---
+
+        const getProductRef = (productId) => doc(collection(db, `artifacts/${appId}/users/${userId}/${INVENTORY_COLLECTION}`), productId);
+        const getProductsCollection = () => collection(db, `artifacts/${appId}/users/${userId}/${INVENTORY_COLLECTION}`);
+
+        window.handleAddProduct = async (e) => {
+            e.preventDefault();
+            if (!db || !userId || !isAuthenticated) {
+                displayError("Authentication/Database not ready.");
+                return;
+            }
+
+            const formData = new FormData(e.target);
+            const newItem = {};
+            formData.forEach((value, key) => newItem[key] = value);
+
+            const generatedSku = generateSKU(newItem);
+            if (generatedSku === 'FTH-INCOMPLETE') {
+                 displayError("Please fill all required fields to generate a valid SKU.");
+                 return;
+            }
+            
+            try {
+                await addDoc(getProductsCollection(), {
+                    name: newItem.name,
+                    sku: generatedSku, 
+                    stock: Number(newItem.stockInQty), 
+                    price: Number(newItem.price),
+                    cost: Number(newItem.cost),
+                    reorderPoint: Number(newItem.reorderPoint),
+                    category: newItem.category, 
+                    color: newItem.color, 
+                    size: newItem.size, 
+                    season: newItem.season, 
+                    stockInDate: newItem.stockInDate, 
+                    salesCount: 0,
+                    lastSold: Date.now(),
+                    notes: newItem.notes, 
+                    imageUrl: newItem.imageUrl 
+                });
+                
+                // Clear form and reset preview
+                e.target.reset();
+                document.getElementById('stockInDate').value = new Date().toISOString().substring(0, 10);
+                updateSkuAndValuePreview();
+                // Scroll to the inventory list
+                document.getElementById('inventory-list')?.scrollIntoView({ behavior: 'smooth' });
+
+            } catch (e) {
+                displayError("Error adding document: " + e.message);
+            }
+        };
+
+        const handleUpdateProductDetails = async (e) => {
+            e.preventDefault();
+            if (!db || !userId || !isAuthenticated) return;
+
+            const formData = new FormData(e.target);
+            const productId = formData.get('id');
+            const updatedData = {};
+            formData.forEach((value, key) => updatedData[key] = value);
+
+            try {
+                // Remove id from data object before saving
+                delete updatedData.id; 
+                
+                // Ensure number fields are stored as numbers
+                updatedData.stock = Number(updatedData.stock);
+                updatedData.price = Number(updatedData.price);
+                updatedData.cost = Number(updatedData.cost);
+                updatedData.reorderPoint = Number(updatedData.reorderPoint);
+
+                await setDoc(getProductRef(productId), updatedData, { merge: true });
+                window.closeModal();
+            } catch (e) {
+                displayError("Error updating product details: " + e.message);
+            }
+        };
+        
+        // Custom logic to handle the delete button click with confirmation
+        const setupDeleteConfirmation = () => {
+            const deleteButton = document.getElementById('delete-product-button');
+            const confirmMessage = document.getElementById('delete-confirm-message');
+            let confirmClicked = false;
+
+            deleteButton.onclick = () => {
+                if (!confirmClicked) {
+                    confirmClicked = true;
+                    confirmMessage.classList.remove('hidden');
+                    deleteButton.classList.add('bg-red-600', 'text-white', 'hover:bg-red-700');
+                    // Reset confirmation after 3 seconds
+                    setTimeout(() => {
+                        confirmClicked = false;
+                        confirmMessage.classList.add('hidden');
+                        deleteButton.classList.remove('bg-red-600', 'text-white', 'hover:bg-red-700');
+                        deleteButton.classList.add('text-red-600', 'hover:bg-red-50');
+                    }, 3000);
+                } else {
+                    handleDeleteProduct(currentProduct.id);
+                }
+            };
+        };
+        
+        const handleDeleteProduct = async (productId) => {
+            if (!db || !userId || !isAuthenticated) return;
+            try {
+                await deleteDoc(getProductRef(productId));
+                window.closeModal();
+            } catch (e) {
+                displayError("Error deleting product: " + e.message);
+            }
+        };
+
+        const handleAdjustStockSubmit = async (e) => {
+            e.preventDefault();
+            if (!db || !userId || !isAuthenticated) return;
+
+            const quantity = Number(e.target.quantity.value);
+            const type = e.target.getAttribute('data-stock-mode') || 'restock'; // Get the determined type
+            const product = currentProduct;
+
+            if (quantity <= 0) {
+                displayError("Quantity must be 1 or more.");
+                return;
+            }
+
+            let newStock = product.stock;
+            let newSalesCount = product.salesCount;
+            let lastSoldTimestamp = product.lastSold;
+
+            if (type === 'restock') {
+                newStock += quantity;
+            } else if (type === 'sale') {
+                if (product.stock < quantity) {
+                    displayError(`Sale quantity (${quantity}) cannot exceed stock (${product.stock}).`);
+                    return;
+                }
+                newStock -= quantity;
+                newSalesCount += quantity;
+                lastSoldTimestamp = Date.now();
+            }
+
+            try {
+                await setDoc(getProductRef(product.id), {
+                    ...product,
+                    stock: newStock,
+                    salesCount: newSalesCount,
+                    lastSold: lastSoldTimestamp
+                }, { merge: true });
+                window.closeModal();
+            } catch (e) {
+                displayError("Error adjusting stock: " + e.message);
+            }
+        };
+
+        // Custom logic for the stock adjustment form buttons
+        const setupAdjustFormLogic = () => {
+            const form = document.getElementById('adjust-stock-form');
+            const restockBtn = document.getElementById('restock-button');
+            const saleBtn = document.getElementById('sale-button');
+            const submitBtn = document.getElementById('adjust-submit-button');
+            const quantityInput = form.querySelector('[name="quantity"]');
+            const stockStatusMsg = document.getElementById('stock-status-message');
+            
+            let currentMode = 'restock';
+            let currentStock = currentProduct.stock;
+
+            const updateUI = () => {
+                const quantity = Number(quantityInput.value) || 0;
+                form.setAttribute('data-stock-mode', currentMode);
+
+                // Button Classes
+                restockBtn.className = `flex-1 py-3 rounded-lg font-bold transition-all duration-200 border-2 ${currentMode === 'restock' ? 'bg-green-500 text-white border-green-700 shadow-md' : 'bg-gray-100 text-gray-700 border-gray-300 hover:bg-green-50'}`;
+                saleBtn.className = `flex-1 py-3 rounded-lg font-bold transition-all duration-200 border-2 ${currentMode === 'sale' ? 'bg-red-500 text-white border-red-700 shadow-md' : 'bg-gray-100 text-gray-700 border-gray-300 hover:bg-red-50'}`;
+
+                // Submit Button Text and Color
+                if (currentMode === 'restock') {
+                    submitBtn.textContent = 'Add Stock';
+                    submitBtn.className = 'w-full py-2 px-4 rounded-md shadow-sm text-sm font-medium text-white transition duration-150 bg-green-600 hover:bg-green-700';
+                    submitBtn.disabled = quantity === 0;
+                } else { // sale mode
+                    submitBtn.textContent = 'Record Sale';
+                    submitBtn.className = 'w-full py-2 px-4 rounded-md shadow-sm text-sm font-medium text-white transition duration-150 bg-red-600 hover:bg-red-700';
+                    if (quantity > currentStock || quantity === 0) {
+                         submitBtn.disabled = true;
+                         stockStatusMsg.className = 'text-sm text-red-500';
+                    } else {
+                        submitBtn.disabled = false;
+                        stockStatusMsg.className = 'text-sm text-gray-500';
+                    }
+                }
+                stockStatusMsg.innerHTML = `Current Stock: <span class="font-bold">${currentStock}</span> pieces`;
+            };
+
+            restockBtn.addEventListener('click', () => { currentMode = 'restock'; updateUI(); });
+            saleBtn.addEventListener('click', () => { currentMode = 'sale'; updateUI(); });
+            quantityInput.addEventListener('input', updateUI);
+
+            updateUI(); // Initial call
+        };
+
+        window.handleExportToCSV = () => {
+            if (products.length === 0) {
+                displayError("No products to export to CSV.");
+                return;
+            }
+            
+            const headers = [
+                "ID", "Product Name", "SKU Code", "Category", "Color", "Season", "Size", 
+                "Stock In Date", "Stock Quantity", "Selling Price (BDT)", "Cost Price (BDT)", 
+                "Profit Margin (%)", "Reorder Point", "Total Sales Count", "Last Sold Date", 
+                "Notes / Remarks", "Image URL" 
+            ];
+
+            const csvRows = products.map(p => {
+                const margin = calculateProfitMargin(p.price, p.cost).toFixed(2);
+                const lastSoldDate = formatDate(p.lastSold);
+                
+                // Escape quotes in strings
+                const escape = (str) => `"${(str || '').toString().replace(/"/g, '""')}"`;
+                
+                return [
+                    escape(p.id), escape(p.name), escape(p.sku), escape(p.category), 
+                    escape(p.color), escape(p.season), escape(p.size), escape(p.stockInDate), 
+                    p.stock, p.price, p.cost, margin, p.reorderPoint, p.salesCount, 
+                    escape(lastSoldDate), escape(p.notes), escape(p.imageUrl) 
+                ].join(',');
+            });
+
+            const csvString = [headers.join(','), ...csvRows].join('\n');
+
+            const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            
+            a.setAttribute('href', url);
+            a.setAttribute('download', `Inventory_Report_${new Date().toISOString().slice(0, 10)}.csv`);
+            
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        };
+
+
+        // --- MAIN APPLICATION INITIALIZATION ---
+
+        const initApp = () => {
+            if (!isAuthenticated) {
+                // Should not happen if called correctly, but safety check
+                showLoginRequiredScreen();
+                return;
+            }
+            
+            // Hide all overlays and show main app
+            document.getElementById('loading-screen').classList.add('hidden');
+            document.getElementById('login-required-screen').classList.add('hidden');
+            document.getElementById('app-container').classList.remove('hidden');
+
+            // Initial UI rendering
+            renderVerticalNav();
+            renderDormantOptions();
+            renderAddProductForm();
+
+            // Setup Event Listeners
+            document.getElementById('dormant-select').addEventListener('change', (e) => {
+                dormantDaysThreshold = Number(e.target.value);
+                // Re-render all data dependent on this threshold
+                const metrics = calculateMetrics();
+                renderMetrics(); 
+            });
+
+            // Input listeners for SKU and Stock In Value preview
+            const formInputs = document.querySelectorAll('#add-product-form input, #add-product-form select');
+            formInputs.forEach(input => {
+                input.addEventListener('input', updateSkuAndValuePreview);
+                input.addEventListener('change', updateSkuAndValuePreview);
+            });
+            document.getElementById('add-product-form').addEventListener('submit', window.handleAddProduct);
+            document.getElementById('export-csv-button').addEventListener('click', window.handleExportToCSV);
+
+            // Start real-time listener
+            startDataListener();
+        };
+
+        const startDataListener = () => {
+             if (!db || !userId) {
+                displayError("Database or User ID is missing for the data listener.");
+                return;
+            }
+            const productsCol = getProductsCollection();
+            const q = query(productsCol);
+
+            onSnapshot(q, (snapshot) => {
+                const productList = [];
+                snapshot.forEach(doc => {
+                    productList.push({ id: doc.id, ...doc.data() });
+                });
+                products = productList; // Update global state
+
+                // Re-render all sections that depend on 'products'
+                const metrics = calculateMetrics();
+                renderMetrics();
+                renderCharts(metrics);
+                renderInventoryTable();
+
+                // If modal is open in edit mode, refresh its content (if current product matches)
+                if (isModalOpen && currentProduct) {
+                    const freshProduct = products.find(p => p.id === currentProduct.id);
+                    if (freshProduct) {
+                         currentProduct = freshProduct; // Update modal's internal product state
+                        if (modalMode === 'edit') {
+                            const modalBody = document.getElementById('modal-body');
+                            modalBody.innerHTML = generateEditFormHtml(currentProduct);
+                            document.getElementById('edit-product-form').addEventListener('submit', handleUpdateProductDetails);
+                            setupDeleteConfirmation();
+                        } else if (modalMode === 'adjust') {
+                            // Only update stock display if in adjust mode
+                            setupAdjustFormLogic(); 
+                        }
+                    }
+                }
+            }, (e) => {
+                displayError("Error fetching real-time inventory: " + e.message);
+            });
+        };
+
+        // --- AUTHENTICATION & INITIAL SETUP ---
+
+        const showLoginRequiredScreen = () => {
+            document.getElementById('loading-screen').classList.add('hidden');
+            document.getElementById('app-container').classList.add('hidden');
+            document.getElementById('login-required-screen').classList.remove('hidden');
+        };
+
+        window.onload = async () => {
+            try {
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                
+                // 1. Set up Auth State Listener
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        // User successfully logged in (via token or previous session)
+                        userId = user.uid;
+                        isAuthenticated = true;
+                        initApp(); // Start the main app
+                    } else {
+                        // User is not logged in
+                        userId = null;
+                        isAuthenticated = false;
+                        showLoginRequiredScreen(); // Show the login barrier
+                    }
+                });
+
+                // 2. Attempt Token Sign-in (If token is available)
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken).catch(e => {
+                        console.error("Custom Token Sign-in Failed:", e.message);
+                        // The onAuthStateChanged listener will handle the unauthenticated state
+                    });
+                } else {
+                    // If no token, we wait for onAuthStateChanged to confirm unauthenticated state
+                }
+
+            } catch (e) {
+                console.error("Firebase Initialization Failed:", e);
+                document.getElementById('loading-screen').classList.add('hidden');
+                document.getElementById('fatal-error-screen').classList.remove('hidden');
+                document.getElementById('error-details').innerHTML = `<span class="font-semibold block">Details:</span> ${e.message}`;
+            }
+        };
+
+        // Exposed global functions for modal forms to use the internal setup logic
+        window.setupDeleteConfirmation = setupDeleteConfirmation;
+        window.setupAdjustFormLogic = setupAdjustFormLogic;
+    </script>
+</body>
+</html>
